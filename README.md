@@ -3,7 +3,7 @@
 A retro arcade space shooter built with Python and Pygame.
 
 ## Screenshots
-![alt text](<Screenshot (64).png>) ![alt text](<Screenshot (65).png>)
+![alt text](<Screenshot (64).png>) ![alt text](<Screenshot (65).png>)![alt text](<Screenshot (68).png>)
 
 ## How to Run
 1. Install Python 3.10+
