@@ -1,8 +1,22 @@
 import pygame
 import os
+import sys
 
 # Path to the fonts folder — this resolves to <project_root>/assets/
-ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
+# when run normally with `python main.py`.
+#
+# BUT: when packaged with PyInstaller (--onefile), __file__ no longer points
+# next to your real project folder — it points inside a temporary extraction
+# folder PyInstaller creates at runtime (sys._MEIPASS). So we detect that
+# case and use the correct base path instead.
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    # Running as a PyInstaller-built exe.
+    BASE_DIR = sys._MEIPASS
+else:
+    # Running normally via `python main.py`.
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 FONT_PATH = os.path.join(ASSETS_DIR, "PressStart2P-Regular.ttf")
 
 _fonts = {}

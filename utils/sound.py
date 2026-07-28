@@ -1,4 +1,23 @@
 import pygame
+import os
+import sys
+
+# Path to the sounds folder — this resolves to <project_root>/sounds/
+# when run normally with `python main.py`.
+#
+# Same story as fonts.py: when packaged with PyInstaller (--onefile),
+# relative strings like "sounds/shoot.wav" only work if the current
+# working directory happens to match where the files were extracted to,
+# which isn't reliable. So we detect the frozen case and build an
+# absolute path instead.
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    # Running as a PyInstaller-built exe.
+    BASE_DIR = sys._MEIPASS
+else:
+    # Running normally via `python main.py`.
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+SOUNDS_DIR = os.path.join(BASE_DIR, "sounds")
 
 # Module-level state
 SOUND_ENABLED = False
@@ -21,13 +40,14 @@ def initialize():
 
     def _try_load(name):
         nonlocal sounds_loaded
+        path = os.path.join(SOUNDS_DIR, name)
         try:
-            s = pygame.mixer.Sound(f"sounds/{name}")
+            s = pygame.mixer.Sound(path)
             sounds_loaded += 1
-            print(f"Loaded: sounds/{name}")
+            print(f"Loaded: {path}")
             return s
         except (pygame.error, FileNotFoundError) as e:
-            print(f"Could not load sounds/{name}: {e}")
+            print(f"Could not load {path}: {e}")
             return None
 
     SHOOT_SOUND     = _try_load("shoot.wav")
@@ -41,11 +61,12 @@ def initialize():
 
     if SOUND_ENABLED:
         apply_volumes()
+        music_path = os.path.join(SOUNDS_DIR, "bgm.mp3")
         try:
-            pygame.mixer.music.load("sounds/bgm.mp3")
+            pygame.mixer.music.load(music_path)
             pygame.mixer.music.set_volume(music_volume)
         except (pygame.error, FileNotFoundError) as e:
-            print(f"Could not load music: {e}")
+            print(f"Could not load music from {music_path}: {e}")
 
 
 def apply_volumes():
@@ -80,7 +101,10 @@ def play_on_channel(sound):
 
 def play_music(loops=-1):
     if SOUND_ENABLED:
-        pygame.mixer.music.play(loops)
+        try:
+            pygame.mixer.music.play(loops)
+        except pygame.error as e:
+            print(f"Could not play music: {e}")
 
 
 def stop_music():
