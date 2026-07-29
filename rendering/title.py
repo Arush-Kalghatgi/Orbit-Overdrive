@@ -38,6 +38,10 @@ def _draw_title_content(surface, stars, time_elapsed):
             star[1] = 0
             star[0] = random.randint(0, settings.WIDTH)
         brightness = int(100 + star[2] * 50)
+        if brightness < 0:
+            brightness = 0
+        elif brightness > 255:
+            brightness = 255
         color = (brightness, brightness, brightness)
         pygame.draw.circle(surface, color, (int(star[0]), int(star[1])), 1)
 
@@ -45,7 +49,6 @@ def _draw_title_content(surface, stars, time_elapsed):
     high_score = load_high_score()
     last_score = load_last_score()
 
-    # --- Top header: SCORE (last run) + HIGH SCORE, symmetric around cx ---
     label_font = get_font(20)
     value_font = get_font(28)
 
@@ -64,7 +67,6 @@ def _draw_title_content(surface, stars, time_elapsed):
     surface.blit(high_label, (high_col_x, 30))
     surface.blit(high_value, (high_col_x, 62))
 
-    # --- Title block ---
     title_font_big = get_font(78)
     sub_font = get_font(20)
     start_font = get_font(30)
@@ -97,45 +99,32 @@ def _draw_title_content(surface, stars, time_elapsed):
 
     surface.blit(subtitle, (cx - subtitle.get_width() // 2, subtitle_y))
 
-    # --- Clickable start button ---
-    # Build a rect for the "PRESS SPACE TO START" text. Blink as before,
-    # but always draw so click hit-detection works even between blinks.
     sw = start_text.get_width()
     sh = start_text.get_height()
-    # We need a stable rect across frames; use a slightly padded box.
     pad_x, pad_y = 30, 12
     start_rect = pygame.Rect(0, 0, sw + pad_x * 2, sh + pad_y * 2)
     start_rect.center = (cx, start_y + sh // 2)
 
-    # Hover highlight
     mouse_pos = pygame.mouse.get_pos()
     hovered = point_in_rect(mouse_pos[0], mouse_pos[1], start_rect)
 
     if hovered:
-        # Draw a filled highlight behind the text
         pygame.draw.rect(surface, (60, 60, 30), start_rect, border_radius=2)
         pygame.draw.rect(surface, YELLOW, start_rect, 2, border_radius=2)
-        # Override text color on hover
         start_text = start_font.render("PRESS SPACE TO START", True, WHITE)
     else:
         blink = math.sin(time_elapsed * 3) > 0
         if not blink:
-            # Dim on blink-off (but keep rect for hit detection) — this is
-            # what actually makes it blink; same color as "on" would not.
             start_text = start_font.render("PRESS SPACE TO START", True, (90, 75, 0))
 
     surface.blit(start_text, start_text.get_rect(center=start_rect.center))
-
-    # Cache the rect on the surface for click handling (using a module attr
-    # is cleaner than stashing on the surface; we re-derive in main.py).
 
     studio_text = studio_font.render("WILD WINNERS STUDIO", True, GRAY)
     surface.blit(studio_text, (cx - studio_text.get_width() // 2, settings.HEIGHT - 45))
 
 
 def get_title_start_rect():
-    """Return the rect of the 'PRESS SPACE TO START' button on the title screen.
-    Must match the layout in _draw_title_content exactly."""
+    """Return the rect of the 'PRESS SPACE TO START' button on the title screen."""
     cx = settings.WIDTH // 2
     title_font_big = get_font(78)
     sub_font = get_font(20)

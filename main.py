@@ -14,7 +14,7 @@ from settings import (
     WHITE, RED, ORANGE, YELLOW, CYAN, PURPLE, GREEN, BLACK, GRAY, DARK_GRAY,
     LIGHT_BLUE, DARK_BLUE,
 )
-from utils import sound
+from core import sound
 from utils.highscore import load_high_score, save_high_score, save_last_score
 from utils.helpers import (
     create_starfield, update_and_draw_stars,
@@ -22,16 +22,19 @@ from utils.helpers import (
     update_constant_shake, point_in_rect,
 )
 from utils.fonts import get_font
-from utils import cursor as game_cursor
-from ui import menu as settings_menu
+from rendering import cursor as game_cursor
+from rendering import menu as settings_menu
+from rendering import particles as game_particles
+from rendering.title import draw_title_screen, get_title_start_rect
+from rendering import touch_ui
+from input import manager as input_manager
 from entities.player import Player
 from entities.bullet import Lazer
 from entities.enemy import Enemy, spawn_enemy
 from entities.powerup import TurboPickup, draw_pickup, LifePickup, draw_life_pickup
 from entities import boost
-from entities.ship_sprite import draw_spaceship, draw_asteroid
-from ui.title_screen import draw_title_screen, get_title_start_rect
-from ui.hud import draw_hud, draw_game_over
+from rendering.ship_sprite import draw_spaceship, draw_asteroid
+from rendering.hud import draw_hud, draw_game_over
 
 
 # --- Display Setup ---
@@ -49,7 +52,11 @@ print(f"Game: {settings.WIDTH}x{settings.HEIGHT} (scale: {settings.SCALE_FACTOR:
 sound.initialize()
 
 
-# --- Star Field ---
+# --- Particle Manager ---
+particles = game_particles.ParticleManager()
+
+
+# --- Star Field (single layer, original behavior) ---
 def update_stars_with_dt(stars, dt, offset_x, offset_y):
     for star in stars:
         star[1] += star[2] * dt * 60
@@ -57,6 +64,10 @@ def update_stars_with_dt(stars, dt, offset_x, offset_y):
             star[1] = 0
             star[0] = random.randint(0, settings.WIDTH)
         brightness = int(100 + star[2] * 50)
+        if brightness < 0:
+            brightness = 0
+        elif brightness > 255:
+            brightness = 255
         color = (brightness, brightness, brightness)
         pygame.draw.circle(screen, color,
                            (int(star[0] + offset_x), int(star[1] + offset_y)), 1)
@@ -88,6 +99,7 @@ def reset_game():
     lives_drop_timer = 0.0
     turbo_drops_counter = 0
     lives_drop_threshold = random.randint(2, 3)
+    particles.clear()
     return (
         Player(player_speed),
         [], [], 0.0, 0.0,
@@ -105,6 +117,8 @@ def handle_collisions(player, enemies, lazers):
     for enemy in enemies:
         for lazer in lazers:
             if enemy.colliderect(lazer):
+                impact_x = lazer.x + lazer.width // 2
+                impact_y = lazer.y
                 if enemy.take_damage():
                     enemies_to_remove.append(enemy)
                     if enemy.color == settings.DARK_BROWN:
@@ -114,6 +128,15 @@ def handle_collisions(player, enemies, lazers):
                     else:
                         score_gained += 30
                     sound.play(sound.EXPLOSION_SOUND)
+                    game_particles.spawn_explosion(
+                        particles, impact_x, impact_y, enemy.color,
+                        count=20, speed_range=(60, 240), size_range=(2, 5),
+                        life_range=(0.4, 0.9)
+                    )
+                else:
+                    game_particles.spawn_sparks(
+                        particles, impact_x, impact_y, count=6
+                    )
                 lazers_to_remove.append(lazer)
     for enemy in enemies:
         if player.colliderect(enemy):
@@ -121,6 +144,14 @@ def handle_collisions(player, enemies, lazers):
             player.lives -= 1
             sound.play(sound.HIT_SOUND)
             trigger_hit_feedback()
+            game_particles.spawn_player_hit(
+                particles, player.x + player.width // 2, player.y + player.height // 2
+            )
+            game_particles.spawn_explosion(
+                particles, enemy.x + enemy.width // 2, enemy.y + enemy.height // 2,
+                enemy.color, count=14, speed_range=(50, 200), size_range=(2, 4),
+                life_range=(0.3, 0.7)
+            )
             if player.lives <= 0:
                 player_died = True
             break
@@ -133,53 +164,52 @@ def main():
     global pickup, pickup_timer, lives_pickup
     global turbo_drops_counter, lives_drop_threshold, lives_drop_timer
     global pre_pause_state
+    global force_touch_ui
 
     clock = pygame.time.Clock()
     high_score = load_high_score()
     state = "title"
-    pre_pause_state = None  # remembers what to resume to / render behind the pause menu
+    pre_pause_state = None
     selected_setting = 0
     is_new_high_score = False
     time_elapsed = 0.0
     title_stars = create_starfield()
 
-    # Lives-drop state
     turbo_drops_counter = 0
     lives_drop_threshold = random.randint(2, 3)
     lives_drop_timer = 0.0
 
-    # Game-over button rects (set when draw_game_over runs)
     gameover_rects = None
-    # Pause menu button rects (set when draw_settings_menu runs)
     pause_rects = None
 
     sound.play_music()
 
-    # We never use the OS cursor — hide it once, for good. Our own retro
-    # crosshair is drawn manually in the render section below, and only
-    # while NOT playing (hidden entirely during gameplay).
     game_cursor.hide_system_cursor_and_use_custom()
 
+    # --- Touch / mouse input ---
+    touch_input = input_manager.InputManager()
+    force_touch_ui = settings.FORCE_TOUCH_UI
+
     while True:
-        # --- Frame timing ---
         raw_dt = clock.get_time() / 1000
         base_dt = raw_dt * get_slowmo_factor()
         dt_world = base_dt * boost.get_world_fast_factor()
         dt_real = base_dt
         time_elapsed += raw_dt
 
-        # --- Mouse state for this frame ---
         mouse_pos = pygame.mouse.get_pos()
-        mouse_pressed = pygame.mouse.get_pressed()  # (left, middle, right)
+        mouse_pressed = pygame.mouse.get_pressed()
         left_held = mouse_pressed[0]
         right_held = mouse_pressed[2]
 
-        # End slider drag when left mouse is released
         if not left_held and settings_menu.is_dragging():
             settings_menu.end_drag()
 
-        # --- Events ---
-        for event in pygame.event.get():
+        all_events = pygame.event.get()
+        if force_touch_ui:
+            touch_input.handle_events(all_events)
+
+        for event in all_events:
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
@@ -213,6 +243,10 @@ def main():
                     if state in ("paused", "gameover", "title"):
                         toggle_fullscreen()
 
+                elif event.key == pygame.K_F10:
+                    force_touch_ui = not force_touch_ui
+                    settings.FORCE_TOUCH_UI = force_touch_ui
+
                 if state == "paused":
                     if event.key == pygame.K_m:
                         sound.toggle_enabled()
@@ -232,7 +266,7 @@ def main():
                             sound.set_sfx_volume(sound.sfx_volume + 0.1)
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:  # left click
+                if event.button == 1:
                     if state == "title":
                         start_rect = get_title_start_rect()
                         if point_in_rect(mouse_pos[0], mouse_pos[1], start_rect):
@@ -250,19 +284,15 @@ def main():
                             is_new_high_score = False
                             sound.play_music()
                     elif state == "paused" and pause_rects is not None:
-                        # Let the menu module dispatch on the click position
                         if not settings_menu.handle_pause_click(mouse_pos[0], mouse_pos[1], pause_rects):
-                            # Clicked outside any control — treat as resume
                             state = pre_pause_state or "playing"
 
-        # --- Input (Playing) ---
         is_moving = False
         if state == "playing":
             boost.update(dt_real)
             keys = pygame.key.get_pressed()
             dx = dy = 0
 
-            # Boost: shift OR right-mouse held (with fuel)
             shift_held = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
             if (shift_held or right_held) and boost.boost_fuel > 0:
                 boost.boost_active = True
@@ -290,14 +320,12 @@ def main():
             player.move(dx, dy)
             player.update_cooldown()
 
-            # Shoot: space OR left-mouse held
             if keys[pygame.K_SPACE] or left_held:
                 new_lazer = player.shoot()
                 if new_lazer:
                     lazers.append(new_lazer)
                     sound.play(sound.SHOOT_SOUND)
 
-        # --- Update (Playing) ---
         if state == "playing":
             spawn_timer += dt_world
             current_interval = max(0.25, spawn_interval - score / 220)
@@ -308,7 +336,6 @@ def main():
             enemies = [e for e in enemies if e.update_with_dt(dt_world)]
             lazers = [l for l in lazers if l.update(dt_world)]
 
-            # --- Turbo pickup ---
             if pickup is None:
                 pickup_timer -= dt_real
                 if pickup_timer <= 0:
@@ -316,12 +343,16 @@ def main():
                     x = random.randint(0, settings.WIDTH - 32)
                     pickup = TurboPickup(x, -32)
                     turbo_drops_counter += 1
+                    game_particles.spawn_puff(
+                        particles, x + 16, -16, (0, 255, 255),
+                        count=12, speed_range=(30, 90), size_range=(2, 4),
+                        life_range=(0.3, 0.7)
+                    )
 
                     if turbo_drops_counter >= lives_drop_threshold and player.lives < 3:
                         lives_drop_threshold = random.randint(2, 3)
                         lives_drop_timer = random.uniform(1.5, 2.5)
 
-            # --- Life pickup ---
             if lives_pickup is None:
                 if lives_drop_timer > 0.0:
                     lives_drop_timer -= dt_real
@@ -331,6 +362,11 @@ def main():
                             x = random.randint(0, settings.WIDTH - 32)
                             lives_pickup = LifePickup(x, -32)
                             turbo_drops_counter = 0
+                            game_particles.spawn_puff(
+                                particles, x + 16, -16, (255, 200, 0),
+                                count=12, speed_range=(30, 90), size_range=(2, 4),
+                                life_range=(0.3, 0.7)
+                            )
                         else:
                             turbo_drops_counter = 0
 
@@ -345,12 +381,22 @@ def main():
                 boost.add_fuel(boost.MAX_FUEL)
                 score += 25
                 sound.play(sound.PICKUP_SOUND)
+                game_particles.spawn_explosion(
+                    particles, pickup.x + 16, pickup.y + 16, (0, 255, 255),
+                    count=14, speed_range=(50, 180), size_range=(2, 4),
+                    life_range=(0.3, 0.7)
+                )
                 pickup = None
 
             if lives_pickup is not None and player.colliderect(lives_pickup):
                 if player.lives < 3:
                     player.lives += 1
                     sound.play(sound.PICKUP_SOUND)
+                game_particles.spawn_explosion(
+                    particles, lives_pickup.x + 16, lives_pickup.y + 16,
+                    (255, 200, 0), count=14, speed_range=(50, 180),
+                    size_range=(2, 4), life_range=(0.3, 0.7)
+                )
                 lives_pickup = None
 
             e_rem, l_rem, died, gained = handle_collisions(player, enemies, lazers)
@@ -378,21 +424,19 @@ def main():
 
             score += dt_real * 5 * boost.get_passive_score_multiplier()
 
-        # --- Combine shake offsets ---
+        particles.update(dt_real)
+
         const_x, const_y = update_constant_shake()
         hit_x, hit_y = update_hit_feedback()
         boost_x, boost_y = boost.get_boost_shake_offset()
         offset_x = const_x + hit_x + boost_x
         offset_y = const_y + hit_y + boost_y
 
-        # --- Render ---
         screen.fill(BLACK)
 
         paused_from_title = (state == "paused" and pre_pause_state == "title")
 
         def _draw_pause_overlay():
-            """Draws the settings menu + keyboard-selection highlight on top
-            of whatever background was just drawn. Returns the click rects."""
             rects = settings_menu.draw_settings_menu(screen, time_elapsed)
             if selected_setting == 0:
                 pygame.draw.rect(screen, YELLOW, (settings.WIDTH // 2 - 150, 150, 300, 140), 2)
@@ -404,22 +448,22 @@ def main():
                 pygame.draw.rect(screen, YELLOW, (settings.WIDTH // 2 - 170, 550, 340, 80), 2)
             return rects
 
-        # === TITLE SCREEN (including a pause opened from the title screen) ===
         if state == "title" or paused_from_title:
             draw_title_screen(screen, title_stars, time_elapsed, offset_x, offset_y)
+            particles.draw(screen, offset_x, offset_y)
             if state == "paused":
                 pause_rects = _draw_pause_overlay()
             else:
                 pause_rects = None
 
-        # === PLAYING / PAUSED (from playing) / GAMEOVER ===
         else:
             update_stars_with_dt(stars, dt_world, offset_x, offset_y)
 
+            particles.draw(screen, offset_x, offset_y)
+
             if state in ("playing", "paused", "gameover"):
                 for lazer in lazers:
-                    pygame.draw.rect(screen, PURPLE,
-                                     (lazer.x + offset_x, lazer.y + offset_y, lazer.width, lazer.height))
+                    lazer.draw(screen, offset_x, offset_y, time_elapsed)
 
                 for enemy in enemies:
                     draw_asteroid(screen, enemy.x, enemy.y, enemy.visual_size, enemy.color,
@@ -437,11 +481,15 @@ def main():
             if state in ("playing", "paused"):
                 draw_spaceship(screen, player.x, player.y, offset_x, offset_y, moving=is_moving)
 
+            # HUD: score, lives, fuel bar — all in the top-right area.
+            # No high score shown here (it appears on title and game-over).
+            # The fuel bar is drawn inside draw_hud() so the layout is consistent.
             if state in ("playing", "paused"):
-                draw_hud(screen, score, high_score, player.lives)
-                boost.draw_fuel_bar(screen, 20, settings.HEIGHT - 130)
+                draw_hud(screen, score, player.lives)
 
             if state == "gameover":
+                # Game-over DOES show the high score (this is where players
+                # see if they beat their record)
                 gameover_rects = draw_game_over(screen, score, high_score, is_new_high_score, time_elapsed)
             else:
                 gameover_rects = None
@@ -451,9 +499,10 @@ def main():
             else:
                 pause_rects = None
 
-        # --- Custom cursor (drawn last so it's on top of everything) ---
-        # Shown on title / settings / game-over so clicking feels arcade-y.
-        # Hidden entirely while actually playing so it doesn't clutter the action.
+        # --- Touch UI (only when enabled) ---
+        if force_touch_ui and state == "playing":
+            touch_ui.draw_touch_ui(screen, touch_input, time_elapsed)
+
         if state != "playing":
             game_cursor.draw_cursor(screen, mouse_pos)
 

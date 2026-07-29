@@ -61,12 +61,22 @@ def initialize():
 
     if SOUND_ENABLED:
         apply_volumes()
-        music_path = os.path.join(SOUNDS_DIR, "bgm.mp3")
-        try:
-            pygame.mixer.music.load(music_path)
-            pygame.mixer.music.set_volume(music_volume)
-        except (pygame.error, FileNotFoundError) as e:
-            print(f"Could not load music from {music_path}: {e}")
+        # Try music files in order of preference. We try multiple formats
+        # because pygame's SDL_mixer is picky about codecs, and the
+        # available formats depend on which SDL_mixer build is installed
+        # and which platform we're on.
+        for music_name in ("bgm.ogg", "bgm.m4a", "bgm.mp3"):
+            music_path = os.path.join(SOUNDS_DIR, music_name)
+            if os.path.exists(music_path):
+                try:
+                    pygame.mixer.music.load(music_path)
+                    pygame.mixer.music.set_volume(music_volume)
+                    print(f"Loaded music: {music_path}")
+                    break
+                except (pygame.error, FileNotFoundError) as e:
+                    print(f"Could not load music {music_path}: {e}")
+
+
 
 
 def apply_volumes():

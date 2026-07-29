@@ -1,9 +1,8 @@
-import pygame
+import math
 import random
 import settings
+from core import sound
 from settings import YELLOW, ORANGE, RED, CYAN, WHITE, DARK_GRAY, GREEN, GRAY
-from utils.fonts import get_font
-from utils import sound
 
 
 # --- Boost State ---
@@ -25,8 +24,6 @@ _prev_active = False
 _boost_channel = None
 
 # --- Boost Sound Loop ---
-# The boost sound file is ~6 seconds long but the boost itself lasts 10 seconds.
-# We restart the sound at 5.5s so the full boost has continuous audio with no gap.
 _boost_sound_time = 0.0
 BOOST_SOUND_LOOP_TIME = 5.5
 
@@ -41,8 +38,6 @@ def update(dt):
             boost_fuel = 0
             boost_active = False
 
-        # Track how long the boost sound has been playing; restart it
-        # before it ends so the 10s boost doesn't have a 4s audio gap.
         _boost_sound_time += dt
         if _boost_sound_time >= BOOST_SOUND_LOOP_TIME:
             if _boost_channel is not None:
@@ -118,32 +113,3 @@ def get_passive_score_multiplier():
 
 def get_kill_score_multiplier():
     return KILL_SCORE_MULTIPLIER if boost_active else 1.0
-
-
-def draw_fuel_bar(surface, x, y):
-    label = get_font(20).render("TURBO", True, WHITE)
-    surface.blit(label, (x, y))
-
-    bar_x = x
-    bar_y = y + 30
-    bar_width = 230
-    bar_height = 18
-
-    pygame.draw.rect(surface, DARK_GRAY, (bar_x, bar_y, bar_width, bar_height))
-
-    fill_ratio = boost_fuel / MAX_FUEL if MAX_FUEL > 0 else 0
-    fill_width = int(bar_width * fill_ratio)
-
-    if fill_ratio > 0.5:
-        color = CYAN
-    elif fill_ratio > 0.25:
-        color = YELLOW
-    else:
-        color = RED
-
-    pygame.draw.rect(surface, color, (bar_x, bar_y, fill_width, bar_height))
-    pygame.draw.rect(surface, WHITE, (bar_x, bar_y, bar_width, bar_height), 1)
-
-    if boost_active:
-        active_text = get_font(16).render(">> ACTIVE <<", True, CYAN)
-        surface.blit(active_text, (bar_x + bar_width + 10, bar_y - 1))

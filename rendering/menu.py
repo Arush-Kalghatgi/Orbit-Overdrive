@@ -2,7 +2,7 @@ import math
 import pygame
 import settings
 from settings import YELLOW, WHITE, GRAY, GREEN, RED, BLACK, DARK_GRAY
-from utils import sound
+from core import sound
 from utils.fonts import get_font
 from utils.helpers import point_in_rect, value_from_slider_x
 
