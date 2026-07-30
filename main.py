@@ -1,12 +1,14 @@
 import sys
 import random
 import math
+import asyncio
 import pygame
 
 pygame.mixer.pre_init(44100, -16, 2, 2048)
 pygame.init()
 
 import settings
+
 from settings import (
     MONITOR_WIDTH, MONITOR_HEIGHT, MONITOR_ASPECT, WINDOW_SCALE,
     is_fullscreen, calculate_resolution, get_scale_factor, apply_display_mode,
@@ -159,7 +161,7 @@ def handle_collisions(player, enemies, lazers):
 
 
 # --- Main Loop ---
-def main():
+async def main():
     global player, enemies, lazers, score, spawn_timer, spawn_interval, stars, state
     global pickup, pickup_timer, lives_pickup
     global turbo_drops_counter, lives_drop_threshold, lives_drop_timer
@@ -186,7 +188,7 @@ def main():
 
     game_cursor.hide_system_cursor_and_use_custom()
 
-    # --- Touch / mouse input ---
+    # --- Touch / mouse input (desktop: touch UI off by default; F10 to toggle) ---
     touch_input = input_manager.InputManager()
     force_touch_ui = settings.FORCE_TOUCH_UI
 
@@ -196,6 +198,9 @@ def main():
         dt_world = base_dt * boost.get_world_fast_factor()
         dt_real = base_dt
         time_elapsed += raw_dt
+
+        # Tiny yield so the asyncio scheduler doesn't complain; harmless on desktop.
+        await asyncio.sleep(0)
 
         mouse_pos = pygame.mouse.get_pos()
         mouse_pressed = pygame.mouse.get_pressed()
@@ -316,6 +321,25 @@ def main():
             if keys[pygame.K_DOWN] or keys[pygame.K_s]:
                 dy += 1
                 is_moving = True
+
+            if force_touch_ui:
+                mdx, mdy = touch_input.get_movement()
+                if mdx != 0.0 or mdy != 0.0:
+                    dx = mdx
+                    dy = mdy
+                    is_moving = True
+                if touch_input.is_shooting():
+                    new_lazer = player.shoot()
+                    if new_lazer:
+                        lazers.append(new_lazer)
+                        sound.play(sound.SHOOT_SOUND)
+                if touch_input.is_boosting() and boost.boost_fuel > 0:
+                    boost.boost_active = True
+                if touch_input.pause_was_pressed():
+                    if state == "playing":
+                        pre_pause_state = "playing"
+                        state = "paused"
+                        settings_menu.end_drag()
 
             player.move(dx, dy)
             player.update_cooldown()
@@ -481,15 +505,10 @@ def main():
             if state in ("playing", "paused"):
                 draw_spaceship(screen, player.x, player.y, offset_x, offset_y, moving=is_moving)
 
-            # HUD: score, lives, fuel bar — all in the top-right area.
-            # No high score shown here (it appears on title and game-over).
-            # The fuel bar is drawn inside draw_hud() so the layout is consistent.
             if state in ("playing", "paused"):
                 draw_hud(screen, score, player.lives)
 
             if state == "gameover":
-                # Game-over DOES show the high score (this is where players
-                # see if they beat their record)
                 gameover_rects = draw_game_over(screen, score, high_score, is_new_high_score, time_elapsed)
             else:
                 gameover_rects = None
@@ -499,7 +518,6 @@ def main():
             else:
                 pause_rects = None
 
-        # --- Touch UI (only when enabled) ---
         if force_touch_ui and state == "playing":
             touch_ui.draw_touch_ui(screen, touch_input, time_elapsed)
 
@@ -509,5 +527,6 @@ def main():
         pygame.display.flip()
         clock.tick(FPS)
 
+
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

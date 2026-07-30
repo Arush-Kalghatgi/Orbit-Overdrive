@@ -161,6 +161,13 @@ def _draw_joystick(surface, center, base_radius, knob_radius,
 
 
 def _draw_pause_button(surface, rect, pressed):
+    """Draw the pause button.
+
+    Shape: a rounded square button matching the other touch buttons.
+    Glyph: three parallel horizontal bars (hamburger / pause-style icon),
+    drawn in the button's SIDE color so they read as recessed cut-outs
+    against the lighter TOP face.
+    """
     ox = 0
     oy = 0
     top = PAUSE_TOP
@@ -173,6 +180,7 @@ def _draw_pause_button(surface, rect, pressed):
     size = rect.width
     half = size // 2
 
+    # --- Drop shadow (when not pressed) ---
     if not pressed:
         shadow_rect = pygame.Rect(0, 0, size, size)
         shadow_rect.center = (cx + 3, cy + 3)
@@ -181,6 +189,7 @@ def _draw_pause_button(surface, rect, pressed):
                          border_radius=4)
         surface.blit(shadow_surf, shadow_rect.topleft)
 
+    # --- Side (raised base) + top (lighter face) ---
     side_rect = pygame.Rect(cx - half, cy - half, size, size)
     pygame.draw.rect(surface, PAUSE_SIDE, side_rect, border_radius=6)
 
@@ -189,15 +198,18 @@ def _draw_pause_button(surface, rect, pressed):
                            size - top_inset * 2, size - top_inset * 2)
     pygame.draw.rect(surface, top, top_rect, border_radius=4)
 
-    line_x_left = cx - 8
-    line_x_right = cx + 8
-    line_top = cy - 8
-    line_bot = cy + 8
-    line_w = 3
-    pygame.draw.rect(surface, PAUSE_SIDE,
-                     (line_x_left - line_w // 2, line_top, line_w, line_bot - line_top))
-    pygame.draw.rect(surface, PAUSE_SIDE,
-                     (line_x_right - line_w // 2, line_top, line_w, line_bot - line_top))
+    # --- Three parallel horizontal bars (the pause glyph) ---
+    bar_width = 18
+    bar_height = 3
+    bar_gap = 4
+    total_block_h = (bar_height * 3) + (bar_gap * 2)
+    block_top_y = cy - (total_block_h // 2) + oy
+
+    for i in range(3):
+        bar_y = block_top_y + i * (bar_height + bar_gap)
+        bar_rect = pygame.Rect(0, 0, bar_width, bar_height)
+        bar_rect.center = (cx, bar_y)
+        pygame.draw.rect(surface, PAUSE_SIDE, bar_rect, border_radius=1)
 
     pygame.draw.rect(surface, DARK_OUTLINE, side_rect, 2, border_radius=6)
 
@@ -225,18 +237,9 @@ def draw_touch_ui(surface, input_manager, time_elapsed=0.0):
     )
 
     # --- Boost button: upper position in the bottom-RIGHT area ---
-    # Positioned so that BOTH boost and shoot fit fully on screen.
-    # The diagonal offset between them is BOOST_RADIUS + SHOOT_RADIUS + GAP.
     DIAGONAL_OFFSET = BOOST_BUTTON_RADIUS + SHOOT_BUTTON_RADIUS + BUTTON_GAP  # 115
 
-    # Boost is anchored to the right edge. Its center y is computed so that
-    # boost + diagonal_offset down to shoot + shoot_radius + bottom padding
-    # still fits within the screen.
     boost_center_x = W - BUTTON_PADDING - BOOST_BUTTON_RADIUS
-    # The maximum y for boost center, given the diagonal: shoot needs to be
-    # at y = boost_y + DIAGONAL_OFFSET, and shoot's bottom (y + radius)
-    # must be <= H - BUTTON_PADDING. So boost_y <= H - BUTTON_PADDING -
-    # SHOOT_RADIUS - DIAGONAL_OFFSET.
     boost_center_y = H - BUTTON_PADDING - SHOOT_BUTTON_RADIUS - DIAGONAL_OFFSET
     boost_rect = pygame.Rect(
         boost_center_x - BOOST_BUTTON_RADIUS,
@@ -246,10 +249,8 @@ def draw_touch_ui(surface, input_manager, time_elapsed=0.0):
     )
 
     # --- Shoot button: lower-LEFT of boost (diagonally arranged) ---
-    # shoot center is at (boost_x - DIAGONAL_OFFSET, boost_y + DIAGONAL_OFFSET)
     shoot_center_x = boost_center_x - DIAGONAL_OFFSET
     shoot_center_y = boost_center_y + DIAGONAL_OFFSET
-    # Make sure shoot stays on-screen horizontally
     if shoot_center_x - SHOOT_BUTTON_RADIUS < BUTTON_PADDING:
         shoot_center_x = SHOOT_BUTTON_RADIUS + BUTTON_PADDING
     shoot_rect = pygame.Rect(
@@ -281,7 +282,6 @@ def draw_touch_ui(surface, input_manager, time_elapsed=0.0):
                    JOYSTICK_KNOB_RADIUS, input_manager.joystick_knob_pos,
                    input_manager._joystick_finger != -1)
 
-    # Boost drawn first (so the visual order matches the diagonal)
     _draw_chunky_button(surface, boost_rect, BOOST_TOP, BOOST_HIGHLIGHT,
                         BOOST_SHADOW, BOOST_SIDE, input_manager.boost_pressed)
     _draw_lightning_icon(surface, boost_rect, pressed=input_manager.boost_pressed)

@@ -1,23 +1,28 @@
-# Orbit Overdrive - Turbo Edition
+# Orbit Overdrive
 
-A retro arcade space shooter built with Python and Pygame.
+A retro-style 2D space shooter built with Pygame. Pilot your spaceship
+through waves of asteroids, collect turbo pickups for speed boosts,
+survive as long as you can.
 
-## Screenshots
-![alt text](<Screenshot (64).png>) ![alt text](<Screenshot (65).png>)![alt text](<Screenshot (68).png>)
-
-## How to Run
-1. Install Python 3.10+
-2. Install pygame: `pip install pygame`
-3. Run: `python main.py`
-
-## Controls
-- Arrow keys / WASD - Move
-- Space / Left Click - Shoot
-- Shift / Right Click (held) - Boost
-- ESC - Pause / Settings
+![Screenshot](README_screenshot.png)
 
 ## Features
-- Dynamic difficulty scaling
-- Turbo boost & lives pickups
-- Custom retro cursor
-- High score tracking
+
+- **Custom particle engine** — explosions, sparks, hit feedback
+- **Dynamic difficulty** — spawn intervals shorten as your score climbs
+- **Fuel-based turbo mechanic** — drain fuel for 3x world speed + score multiplier
+- **Persistent high scores** — saved across sessions
+- **On-screen touch UI** — auto-shown on web builds, optional on desktop (F10)
+- **Mouse or keyboard** — play either way on desktop
+
+## Built With
+
+- **Python 3.12**
+- **Pygame 2.6**
+- **PyInstaller** (desktop distribution)
+
+## How to Run (From Source)
+
+```bash
+pip install -r requirements.txt
+python main.py

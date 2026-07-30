@@ -50,12 +50,14 @@ def initialize():
             print(f"Could not load {path}: {e}")
             return None
 
-    SHOOT_SOUND     = _try_load("shoot.wav")
-    EXPLOSION_SOUND = _try_load("explosion.wav")
-    HIT_SOUND       = _try_load("hit.wav")
-    GAMEOVER_SOUND  = _try_load("gameover.wav")
-    BOOST_SOUND     = _try_load("boost.wav")
-    PICKUP_SOUND    = _try_load("powerup.wav")    # NEW
+    # All SFX are .ogg now (Pygbag's web build requires this; desktop is
+    # also fine with .ogg).
+    SHOOT_SOUND     = _try_load("shoot.ogg")
+    EXPLOSION_SOUND = _try_load("explosion.ogg")
+    HIT_SOUND       = _try_load("hit.ogg")
+    GAMEOVER_SOUND  = _try_load("gameover.ogg")
+    BOOST_SOUND     = _try_load("boost.ogg")
+    PICKUP_SOUND    = _try_load("powerup.ogg")    # NEW
 
     SOUND_ENABLED = sounds_loaded > 0
 
@@ -75,8 +77,6 @@ def initialize():
                     break
                 except (pygame.error, FileNotFoundError) as e:
                     print(f"Could not load music {music_path}: {e}")
-
-
 
 
 def apply_volumes():
