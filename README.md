@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/LOGO.png" alt="Orbit Overdrive" width="160">
+  <img src="favicon.ico" alt="Orbit Overdrive" width="160">
 </p>
 
 <h1 align="center">Orbit Overdrive</h1>
