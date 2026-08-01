@@ -1,62 +1,168 @@
-<h1 align="center">Orbit Overdrive</h1>
+# Orbit Overdrive
+
+A retro-styled 2D space shooter built with **Python** and **Pygame**.
+
+Procedural rendering • Custom particle engine • Persistent high scores
+
+ **Play now:** https://wild-winners-studio.itch.io/orbit-overdrive
+
+---
+
+## Screenshots
+
+| | |
+|:-:|:-:|
+| ![](Screenshot%20(151).png) | ![](Screenshot%20(152).png) |
+| ![](Screenshot%20(153).png) | ![](Screenshot%20(154).png) |
 
 <p align="center">
-  A retro-styled 2D space shooter built with Python and Pygame.<br>
-  Procedural rendering, custom particle engine, persistent high scores.
-</p>
-
-<p align="center">
-  <a href="https://wild-winners-studio.itch.io/orbit-overdrive"><img src="https://img.shields.io/badge/Play_on-itch.io-FA5C5C?style=for-the-badge&logo=itch.io&logoColor=white" alt="Play on itch.io"></a>
+  <img src="Screenshot%20(155).png" width="70%">
 </p>
 
 ---
 
-## Overview
+# Overview
 
-**Orbit Overdrive** is a fast, juicy, retro-styled space shooter. Pilot your ship through endless waves of asteroids, collect turbo pickups for speed boosts, and chase the highest score you can survive.
+**Orbit Overdrive** is a fast-paced retro arcade space shooter where survival is everything.
 
-Everything in the game — every asteroid, particle, pickup, even the crosshair cursor — is rendered procedurally using Pygame primitives. No sprite sheets, no game engine, no asset store.
+Pilot your ship through endless asteroid waves, collect turbo pickups to push your speed beyond the limit, dodge increasingly dangerous obstacles, and chase the highest score you can survive.
 
-- **Genre:** Arcade shooter
-- **Platform:** Windows
-- **Engine:** Pygame 2.6 (Python 3.12+)
-- **Codebase size:** ~2,000 lines of Python
+Every visual element in the game—including asteroids, explosions, particles, pickups, UI effects, and even the crosshair—is rendered procedurally using **Pygame primitives**. There are **no sprite sheets, no game engine, and no asset packs**—everything is generated entirely through code.
 
-## Features
+---
 
-- **Endless waves** with progressively increasing difficulty
-- **Three asteroid types** with distinct damage profiles and point values
-- **Turbo mechanic** — drain fuel for 3x world speed, 4x passive score, 2x per-kill score
-- **Life pickups** that drop every 2-3 turbo pickups
-- **Persistent high scores** via local JSON storage
-- **Custom particle engine** — explosions, sparks, hit feedback generated per frame
-- **Pixel-perfect rendering** at any window size with proper aspect ratio handling
-- **Pause menu** with volume sliders and fullscreen control
-- **In-game help screen** with controls reference and scoring breakdown
+# Features
 
-## Controls
+- Endless gameplay with progressively increasing difficulty
+- Three unique asteroid types with different health, damage, and score values
+- Turbo mechanic
+  - 3× world speed
+  - 4× passive score gain
+  - 2× score per asteroid destroyed
+- Life pickups that spawn every 2–3 turbo pickups
+- Persistent high scores using local JSON storage
+- Fully custom particle engine for explosions, sparks, and hit effects
+- Pixel-perfect rendering at any window size with proper aspect ratio scaling
+- Pause menu featuring:
+  - Master Volume
+  - Music Volume
+  - SFX Volume
+  - Fullscreen Toggle
+- Built-in Help / How to Play screen
+- Smooth retro-inspired visuals
+
+---
+
+# Tech Stack
+
+| Technology | Purpose |
+|------------|---------|
+| Python 3.12+ | Core programming language |
+| Pygame 2.6 | Rendering, audio, input, game loop |
+| JSON | Persistent high-score storage |
+
+---
+
+# Technical Highlights
+
+- Approximately **2,000 lines** of Python
+- Built entirely from scratch using **Pygame**
+- Fully procedural rendering (no sprites)
+- Custom particle system
+- Resolution-independent rendering
+- Object-oriented architecture
+- Dynamic difficulty progression
+- Persistent save system
+
+---
+
+# Controls
 
 | Action | Keyboard | Mouse |
-|---|---|---|
-| Move | Arrow keys / WASD | — |
-| Shoot | Spacebar | Left click |
-| Boost | Shift | Right click |
+|--------|----------|-------|
+| Move | WASD / Arrow Keys | — |
+| Shoot | Spacebar | Left Click |
+| Turbo Boost | Left Shift | Right Click |
 | Pause | Esc | — |
 | Fullscreen | F11 | — |
-| Help / How to Play | "?" button on title screen | Click |
+| Help | "?" button on title screen | Click |
 
-## Installation
+---
 
-### Play the latest build
+# Installation
 
-Download the Windows binary from the [itch.io page](https://wild-winners-studio.itch.io/orbit-overdrive). Extract and run `OrbitOverdrive.exe`. No installation required.
+## Play the Latest Build
 
-### Run from source
+Download the latest Windows build from itch.io:
 
-Requires **Python 3.12 or later**.
+https://wild-winners-studio.itch.io/orbit-overdrive
+
+Extract the ZIP file and launch:
+
+```
+OrbitOverdrive.exe
+```
+
+No installation required.
+
+---
+
+## Run from Source
+
+Requires **Python 3.12** or later.
 
 ```bash
-git clone https://github.com/<your-username>/orbit-overdrive.git
+git clone https://github.com/Arush-Kalghatgi/orbit-overdrive.git
+
 cd orbit-overdrive
+
 pip install -r requirements.txt
+
 python main.py
+```
+
+---
+
+# Project Structure
+
+```
+OrbitOverdrive/
+│
+├── Screenshot (151).png
+├── Screenshot (152).png
+├── Screenshot (153).png
+├── Screenshot (154).png
+├── Screenshot (155).png
+├── main.py
+├── requirements.txt
+├── highscores.json
+├── README.md
+└── ...
+```
+
+---
+
+# Planned Features
+
+- More enemy types
+- Boss battles
+- Additional weapons
+- More power-ups
+- Achievement system
+- Online leaderboards
+- Controller support
+
+---
+
+# Developer
+
+Developed by **Arush Kalghatgi**
+
+If you enjoyed the project, consider giving it a ⭐ on GitHub and checking it out on itch.io.
+
+## Support
+
+If you like the project, don't forget to **Star** the repository!
+
+**Play Orbit Overdrive:**  
+https://wild-winners-studio.itch.io/orbit-overdrive
