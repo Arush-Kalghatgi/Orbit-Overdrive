@@ -1,17 +1,14 @@
 import sys
 import random
-import math
-import asyncio
 import pygame
 
 pygame.mixer.pre_init(44100, -16, 2, 2048)
 pygame.init()
 
 import settings
+settings.init_monitor_info()
 
 from settings import (
-    MONITOR_WIDTH, MONITOR_HEIGHT, MONITOR_ASPECT, WINDOW_SCALE,
-    is_fullscreen, calculate_resolution, get_scale_factor, apply_display_mode,
     FPS,
     WHITE, RED, ORANGE, YELLOW, CYAN, PURPLE, GREEN, BLACK, GRAY, DARK_GRAY,
     LIGHT_BLUE, DARK_BLUE,
@@ -27,70 +24,40 @@ from utils.fonts import get_font
 from rendering import cursor as game_cursor
 from rendering import menu as settings_menu
 from rendering import particles as game_particles
+from rendering import help as help_screen
 from rendering.title import draw_title_screen, get_title_start_rect
-from rendering import touch_ui
-from input import manager as input_manager
 from entities.player import Player
 from entities.bullet import Lazer
 from entities.enemy import Enemy, spawn_enemy
 from entities.powerup import TurboPickup, draw_pickup, LifePickup, draw_life_pickup
 from entities import boost
 from rendering.ship_sprite import draw_spaceship, draw_asteroid
-from rendering.hud import draw_hud, draw_game_over
+from rendering.hud import (
+    draw_hud, draw_game_over,
+    update_hud_animation, reset_high_score_state,
+)
 
 
-# --- Display Setup ---
-settings.WIDTH, settings.HEIGHT = calculate_resolution(is_fullscreen)
-settings.SCALE_FACTOR = get_scale_factor(settings.HEIGHT)
-
-screen = apply_display_mode(is_fullscreen, settings.WIDTH, settings.HEIGHT)
+# ============================================================
+# Display Setup
+# ============================================================
+settings.apply_resolution(settings.is_fullscreen)
+screen = pygame.display.set_mode(
+    (settings.WIDTH, settings.HEIGHT),
+    pygame.FULLSCREEN if settings.is_fullscreen else 0,
+)
 pygame.display.set_caption("ORBIT OVERDRIVE")
+print(f"[desktop] {settings.WIDTH}x{settings.HEIGHT} "
+      f"({'fullscreen' if settings.is_fullscreen else 'windowed'})")
 
-print(f"Monitor: {MONITOR_WIDTH}x{MONITOR_HEIGHT} (aspect: {MONITOR_ASPECT:.2f})")
-print(f"Game: {settings.WIDTH}x{settings.HEIGHT} (scale: {settings.SCALE_FACTOR:.2f}x)")
-
-
-# --- Audio Setup ---
 sound.initialize()
-
-
-# --- Particle Manager ---
 particles = game_particles.ParticleManager()
 
 
-# --- Star Field (single layer, original behavior) ---
-def update_stars_with_dt(stars, dt, offset_x, offset_y):
-    for star in stars:
-        star[1] += star[2] * dt * 60
-        if star[1] > settings.HEIGHT:
-            star[1] = 0
-            star[0] = random.randint(0, settings.WIDTH)
-        brightness = int(100 + star[2] * 50)
-        if brightness < 0:
-            brightness = 0
-        elif brightness > 255:
-            brightness = 255
-        color = (brightness, brightness, brightness)
-        pygame.draw.circle(screen, color,
-                           (int(star[0] + offset_x), int(star[1] + offset_y)), 1)
-
-
-# --- Resolution Helper ---
-def toggle_fullscreen():
-    global screen, stars
-    settings.is_fullscreen = not settings.is_fullscreen
-    settings.WIDTH, settings.HEIGHT = calculate_resolution(settings.is_fullscreen)
-    settings.SCALE_FACTOR = get_scale_factor(settings.HEIGHT)
-    screen = apply_display_mode(settings.is_fullscreen, settings.WIDTH, settings.HEIGHT)
-    print(f"Switched to {'fullscreen' if settings.is_fullscreen else 'windowed'}: "
-          f"{settings.WIDTH}x{settings.HEIGHT}")
-
-
-# --- Game Reset ---
 def reset_game():
     global pickup, pickup_timer, lives_pickup
     global turbo_drops_counter, lives_drop_threshold, lives_drop_timer
-    player_speed = int(6 * settings.SCALE_FACTOR)
+    player_speed = int(6 * settings.SCALE_FACTOR) or 6
     boost.boost_fuel = boost.MAX_FUEL
     boost.boost_active = False
     boost._prev_active = False
@@ -110,7 +77,19 @@ def reset_game():
     )
 
 
-# --- Hit Detection ---
+def toggle_fullscreen():
+    """Toggle fullscreen and reset the game to the new resolution."""
+    global screen, player, enemies, lazers, score, spawn_timer, spawn_interval, stars
+    settings.is_fullscreen = not settings.is_fullscreen
+    settings.apply_resolution(settings.is_fullscreen)
+    flags = pygame.FULLSCREEN if settings.is_fullscreen else 0
+    screen = pygame.display.set_mode((settings.WIDTH, settings.HEIGHT), flags)
+    player, enemies, lazers, score, spawn_timer, spawn_interval, stars = reset_game()
+    print(f"[desktop] Switched to "
+          f"{'fullscreen' if settings.is_fullscreen else 'windowed'}: "
+          f"{settings.WIDTH}x{settings.HEIGHT}")
+
+
 def handle_collisions(player, enemies, lazers):
     enemies_to_remove = []
     lazers_to_remove = []
@@ -160,13 +139,24 @@ def handle_collisions(player, enemies, lazers):
     return enemies_to_remove, lazers_to_remove, player_died, score_gained
 
 
-# --- Main Loop ---
-async def main():
+def update_stars_with_dt(stars, dt, offset_x, offset_y):
+    for star in stars:
+        star[1] += star[2] * dt * 60
+        if star[1] > settings.HEIGHT:
+            star[1] = 0
+            star[0] = random.randint(0, settings.WIDTH)
+        brightness = int(100 + star[2] * 50)
+        brightness = max(0, min(255, brightness))
+        color = (brightness, brightness, brightness)
+        pygame.draw.circle(screen, color,
+                           (int(star[0] + offset_x), int(star[1] + offset_y)), 1)
+
+
+def main():
     global player, enemies, lazers, score, spawn_timer, spawn_interval, stars, state
     global pickup, pickup_timer, lives_pickup
     global turbo_drops_counter, lives_drop_threshold, lives_drop_timer
     global pre_pause_state
-    global force_touch_ui
 
     clock = pygame.time.Clock()
     high_score = load_high_score()
@@ -185,12 +175,8 @@ async def main():
     pause_rects = None
 
     sound.play_music()
-
     game_cursor.hide_system_cursor_and_use_custom()
-
-    # --- Touch / mouse input (desktop: touch UI off by default; F10 to toggle) ---
-    touch_input = input_manager.InputManager()
-    force_touch_ui = settings.FORCE_TOUCH_UI
+    help_open = False
 
     while True:
         raw_dt = clock.get_time() / 1000
@@ -199,8 +185,9 @@ async def main():
         dt_real = base_dt
         time_elapsed += raw_dt
 
-        # Tiny yield so the asyncio scheduler doesn't complain; harmless on desktop.
-        await asyncio.sleep(0)
+        # Tick the HUD blink animation (so the high-score flicker runs
+        # at real-time speed regardless of slowmo).
+        update_hud_animation(raw_dt)
 
         mouse_pos = pygame.mouse.get_pos()
         mouse_pressed = pygame.mouse.get_pressed()
@@ -211,23 +198,68 @@ async def main():
             settings_menu.end_drag()
 
         all_events = pygame.event.get()
-        if force_touch_ui:
-            touch_input.handle_events(all_events)
 
+        # ============================================================
+        # HELP SCREEN MODE
+        # ============================================================
+        if help_open:
+            for event in all_events:
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        help_open = False
+                        break
+
+            non_keyboard_events = [
+                e for e in all_events if e.type != pygame.KEYDOWN
+            ]
+            action = help_screen.handle_events(
+                non_keyboard_events, mouse_pos, left_held
+            )
+            if action == "close":
+                help_open = False
+                help_screen.reset_scroll()
+
+            draw_title_screen(screen, title_stars, time_elapsed, 0, 0)
+            help_screen.draw_overlay(screen)
+            game_cursor.draw_cursor(screen, mouse_pos)
+
+            pygame.display.flip()
+            clock.tick(FPS)
+            continue
+
+        # ============================================================
+        # NORMAL EVENT LOOP
+        # ============================================================
         for event in all_events:
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
 
             elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    if state in ("playing", "title"):
+                        pre_pause_state = state
+                        state = "paused"
+                        settings_menu.end_drag()
+                    elif state == "paused":
+                        state = pre_pause_state or "playing"
+                    continue
+
                 if state == "title" and event.key == pygame.K_SPACE:
                     player, enemies, lazers, score, spawn_timer, spawn_interval, stars = reset_game()
+                    # Reset HUD blink state for the new run, anchored
+                    # to the high score that was loaded at startup.
+                    reset_high_score_state(high_score)
                     state = "playing"
                     sound.play_music()
 
                 elif state == "gameover":
                     if event.key == pygame.K_SPACE:
                         player, enemies, lazers, score, spawn_timer, spawn_interval, stars = reset_game()
+                        reset_high_score_state(high_score)
                         state = "playing"
                         sound.play_music()
                         is_new_high_score = False
@@ -236,21 +268,9 @@ async def main():
                         is_new_high_score = False
                         sound.play_music()
 
-                elif event.key == pygame.K_ESCAPE:
-                    if state in ("playing", "title"):
-                        pre_pause_state = state
-                        state = "paused"
-                        settings_menu.end_drag()
-                    elif state == "paused":
-                        state = pre_pause_state or "playing"
-
                 elif event.key == pygame.K_F11:
-                    if state in ("paused", "gameover", "title"):
+                    if state in ("title", "paused", "gameover"):
                         toggle_fullscreen()
-
-                elif event.key == pygame.K_F10:
-                    force_touch_ui = not force_touch_ui
-                    settings.FORCE_TOUCH_UI = force_touch_ui
 
                 if state == "paused":
                     if event.key == pygame.K_m:
@@ -272,15 +292,24 @@ async def main():
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
+                    if state in ("title", "paused"):
+                        help_btn = help_screen.get_button_rect()
+                        if point_in_rect(mouse_pos[0], mouse_pos[1], help_btn):
+                            help_open = True
+                            help_screen.reset_scroll()
+                            continue
+
                     if state == "title":
                         start_rect = get_title_start_rect()
                         if point_in_rect(mouse_pos[0], mouse_pos[1], start_rect):
                             player, enemies, lazers, score, spawn_timer, spawn_interval, stars = reset_game()
+                            reset_high_score_state(high_score)
                             state = "playing"
                             sound.play_music()
                     elif state == "gameover" and gameover_rects is not None:
                         if point_in_rect(mouse_pos[0], mouse_pos[1], gameover_rects["retry"]):
                             player, enemies, lazers, score, spawn_timer, spawn_interval, stars = reset_game()
+                            reset_high_score_state(high_score)
                             state = "playing"
                             sound.play_music()
                             is_new_high_score = False
@@ -322,25 +351,6 @@ async def main():
                 dy += 1
                 is_moving = True
 
-            if force_touch_ui:
-                mdx, mdy = touch_input.get_movement()
-                if mdx != 0.0 or mdy != 0.0:
-                    dx = mdx
-                    dy = mdy
-                    is_moving = True
-                if touch_input.is_shooting():
-                    new_lazer = player.shoot()
-                    if new_lazer:
-                        lazers.append(new_lazer)
-                        sound.play(sound.SHOOT_SOUND)
-                if touch_input.is_boosting() and boost.boost_fuel > 0:
-                    boost.boost_active = True
-                if touch_input.pause_was_pressed():
-                    if state == "playing":
-                        pre_pause_state = "playing"
-                        state = "paused"
-                        settings_menu.end_drag()
-
             player.move(dx, dy)
             player.update_cooldown()
 
@@ -372,7 +382,6 @@ async def main():
                         count=12, speed_range=(30, 90), size_range=(2, 4),
                         life_range=(0.3, 0.7)
                     )
-
                     if turbo_drops_counter >= lives_drop_threshold and player.lives < 3:
                         lives_drop_threshold = random.randint(2, 3)
                         lives_drop_timer = random.uniform(1.5, 2.5)
@@ -472,6 +481,8 @@ async def main():
                 pygame.draw.rect(screen, YELLOW, (settings.WIDTH // 2 - 170, 550, 340, 80), 2)
             return rects
 
+        cursor_visible = state != "playing"
+
         if state == "title" or paused_from_title:
             draw_title_screen(screen, title_stars, time_elapsed, offset_x, offset_y)
             particles.draw(screen, offset_x, offset_y)
@@ -479,10 +490,10 @@ async def main():
                 pause_rects = _draw_pause_overlay()
             else:
                 pause_rects = None
+            help_screen.draw_button(screen, mouse_pos if cursor_visible else None)
 
         else:
             update_stars_with_dt(stars, dt_world, offset_x, offset_y)
-
             particles.draw(screen, offset_x, offset_y)
 
             if state in ("playing", "paused", "gameover"):
@@ -504,9 +515,10 @@ async def main():
 
             if state in ("playing", "paused"):
                 draw_spaceship(screen, player.x, player.y, offset_x, offset_y, moving=is_moving)
-
-            if state in ("playing", "paused"):
-                draw_hud(screen, score, player.lives)
+                # HUD: pass the pre-run high score so the blink logic knows
+                # when the player first crosses it.
+                draw_hud(surface=screen, score=score, lives=player.lives,
+                         pre_run_high_score=high_score)
 
             if state == "gameover":
                 gameover_rects = draw_game_over(screen, score, high_score, is_new_high_score, time_elapsed)
@@ -515,13 +527,11 @@ async def main():
 
             if state == "paused":
                 pause_rects = _draw_pause_overlay()
+                help_screen.draw_button(screen, mouse_pos if cursor_visible else None)
             else:
                 pause_rects = None
 
-        if force_touch_ui and state == "playing":
-            touch_ui.draw_touch_ui(screen, touch_input, time_elapsed)
-
-        if state != "playing":
+        if cursor_visible:
             game_cursor.draw_cursor(screen, mouse_pos)
 
         pygame.display.flip()
@@ -529,4 +539,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

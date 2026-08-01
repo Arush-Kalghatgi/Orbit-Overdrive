@@ -7,8 +7,6 @@ from utils.fonts import get_font
 from utils.helpers import point_in_rect, value_from_slider_x
 
 
-# Sliders store their drag state in this module so the event loop in main.py
-# can read/write to it.
 class _SliderDragState:
     active = None  # name of slider being dragged ("music" or "sfx"), or None
 
@@ -29,9 +27,6 @@ def end_drag():
 
 
 def _draw_volume_row(surface, cx, top_y, label, value, slider_name):
-    """Draws one centered volume row: label, bar, percent, hint.
-    If the mouse is pressed inside the bar, this slider becomes the active
-    drag target and the bar is filled to the mouse x position."""
     label_font = get_font(20)
     label_surf = label_font.render(label, True, WHITE)
     surface.blit(label_surf, (cx - label_surf.get_width() // 2, top_y))
@@ -43,9 +38,8 @@ def _draw_volume_row(surface, cx, top_y, label, value, slider_name):
     bar_rect = pygame.Rect(bar_x, bar_y, bar_width, bar_height)
 
     mouse_pos = pygame.mouse.get_pos()
-    mouse_pressed = pygame.mouse.get_pressed()[0]  # left button held
+    mouse_pressed = pygame.mouse.get_pressed()[0]
 
-    # Update drag value if this slider is active
     if _drag.active == slider_name and mouse_pressed:
         new_val = value_from_slider_x(mouse_pos[0], bar_x, bar_width)
         if slider_name == "music":
@@ -54,15 +48,12 @@ def _draw_volume_row(surface, cx, top_y, label, value, slider_name):
             sound.set_sfx_volume(new_val)
         value = new_val
 
-    # Bar background
     pygame.draw.rect(surface, DARK_GRAY, bar_rect)
 
-    # Bar fill (use the live value, not the function arg)
     live_val = sound.music_volume if slider_name == "music" else sound.sfx_volume
     fill_width = int(bar_width * live_val)
     pygame.draw.rect(surface, GREEN, (bar_x, bar_y, fill_width, bar_height))
 
-    # Hover/drag border
     if point_in_rect(mouse_pos[0], mouse_pos[1], bar_rect) or _drag.active == slider_name:
         border_color = YELLOW if _drag.active == slider_name else WHITE
         pygame.draw.rect(surface, border_color, bar_rect, 2)
@@ -81,7 +72,6 @@ def _draw_volume_row(surface, cx, top_y, label, value, slider_name):
 
 
 def get_music_slider_rect(cx, top_y):
-    """Pre-compute the music slider rect for hit testing."""
     bar_width = 240
     bar_y = top_y + 36
     bar_height = 22
@@ -90,8 +80,7 @@ def get_music_slider_rect(cx, top_y):
 
 
 def get_sfx_slider_rect(cx, top_y):
-    """Pre-compute the SFX slider rect for hit testing."""
-    return get_music_slider_rect(cx, top_y)  # same dimensions
+    return get_music_slider_rect(cx, top_y)
 
 
 def draw_settings_menu(surface, time_elapsed=0.0):
@@ -102,18 +91,15 @@ def draw_settings_menu(surface, time_elapsed=0.0):
 
     cx = settings.WIDTH // 2
 
-    # --- Title ---
     title_font = get_font(48)
     title_shadow = title_font.render("SETTINGS", True, (100, 85, 0))
     title_main = title_font.render("SETTINGS", True, YELLOW)
     surface.blit(title_shadow, (cx - title_shadow.get_width() // 2 + 3, 53))
     surface.blit(title_main, (cx - title_main.get_width() // 2, 50))
 
-    # --- Volume rows ---
     music_rect = _draw_volume_row(surface, cx, 170, "MUSIC VOLUME", sound.music_volume, "music")
-    sfx_rect   = _draw_volume_row(surface, cx, 340, "SFX VOLUME",   sound.sfx_volume,   "sfx")
+    sfx_rect = _draw_volume_row(surface, cx, 340, "SFX VOLUME", sound.sfx_volume, "sfx")
 
-    # --- Sound toggle button ---
     toggle_font = get_font(26)
     hint_font = get_font(16)
     mouse_pos = pygame.mouse.get_pos()
@@ -133,7 +119,6 @@ def draw_settings_menu(surface, time_elapsed=0.0):
     hint1 = hint_font.render("PRESS M OR CLICK TO TOGGLE", True, GRAY)
     surface.blit(hint1, (cx - hint1.get_width() // 2, sound_btn.bottom + 8))
 
-    # --- Fullscreen toggle button ---
     fs_color = GREEN if settings.is_fullscreen else RED
     fs_status = "ON" if settings.is_fullscreen else "OFF"
     fs_text = toggle_font.render(f"FULLSCREEN: {fs_status}", True, fs_color)
@@ -148,12 +133,14 @@ def draw_settings_menu(surface, time_elapsed=0.0):
     hint2 = hint_font.render("PRESS F11 OR CLICK TO TOGGLE", True, GRAY)
     surface.blit(hint2, (cx - hint2.get_width() // 2, fs_btn.bottom + 8))
 
-    # --- Resume prompt ---
     blink = math.sin(time_elapsed * 3) > 0
     if blink:
         resume_font = get_font(20)
-        resume_text = resume_font.render("PRESS ESC OR CLICK OUTSIDE TO RESUME", True, WHITE)
-        surface.blit(resume_text, (cx - resume_text.get_width() // 2, settings.HEIGHT - 55))
+        resume_text = resume_font.render(
+            "PRESS ESC OR CLICK OUTSIDE TO RESUME", True, WHITE
+        )
+        surface.blit(resume_text,
+                     (cx - resume_text.get_width() // 2, settings.HEIGHT - 55))
 
     return {
         "music_slider": music_rect,
@@ -164,8 +151,6 @@ def draw_settings_menu(surface, time_elapsed=0.0):
 
 
 def handle_pause_click(mx, my, rects):
-    """Given a click position and the rects returned by draw_settings_menu,
-    dispatch the appropriate action. Returns True if the click was consumed."""
     if point_in_rect(mx, my, rects["music_slider"]):
         _drag.active = "music"
         val = value_from_slider_x(mx, rects["music_slider"].x, rects["music_slider"].width)
@@ -180,7 +165,6 @@ def handle_pause_click(mx, my, rects):
         sound.toggle_enabled()
         return True
     if point_in_rect(mx, my, rects["fullscreen_toggle"]):
-        # Imported here to avoid circular import at module load time.
         import main as _main
         _main.toggle_fullscreen()
         return True
