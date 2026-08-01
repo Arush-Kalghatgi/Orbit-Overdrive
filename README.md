@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="favicon.ico" alt="Orbit Overdrive" width="160">
-</p>
-
 <h1 align="center">Orbit Overdrive</h1>
 
 <p align="center">
